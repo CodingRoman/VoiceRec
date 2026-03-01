@@ -2,6 +2,7 @@ using NAudio.Wave;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -19,17 +20,42 @@ public class AudioRecordingService : IDisposable
     private float _lastAudioLevel;
     private bool _isSilent;
     private const int SilenceThreshold = 50; // RMS threshold for silence detection (lower = more sensitive)
-    private const int SilenceDurationMs = 5000; // Duration of silence to trigger transcription (5 seconds)
+    private const int SilenceDurationMs = 2000; // Duration of silence to trigger transcription (2 seconds)
 
     public event EventHandler<float[]>? AudioLevelChanged;
     public event EventHandler<string>? SilenceDetected;
     public event EventHandler<string>? RecordingStarted;
     public event EventHandler<string>? RecordingStopped;
+    public event EventHandler<string>? RecordingError;
 
     public bool IsRecording => _isRecording;
     public List<float> AudioSamples => _audioSamples;
 
-    public void StartRecording()
+    /// <summary>
+    /// Gets all available audio input devices
+    /// </summary>
+    public static List<AudioInputDevice> GetAvailableDevices()
+    {
+        var devices = new List<AudioInputDevice>();
+        
+        for (int i = 0; i < WaveInEvent.DeviceCount; i++)
+        {
+            var capabilities = WaveInEvent.GetCapabilities(i);
+            devices.Add(new AudioInputDevice
+            {
+                DeviceNumber = i,
+                Name = capabilities.ProductName,
+                Channels = capabilities.Channels
+            });
+        }
+        
+        return devices;
+    }
+
+    /// <summary>
+    /// Start recording from the specified device, or default device if deviceNumber is -1
+    /// </summary>
+    public void StartRecording(int deviceNumber = -1)
     {
         if (_isRecording) return;
 
@@ -38,10 +64,11 @@ public class AudioRecordingService : IDisposable
             _recordingStream = new MemoryStream();
             _waveIn = new WaveInEvent
             {
+                DeviceNumber = deviceNumber >= 0 ? deviceNumber : 0, // Default to first device if invalid
                 WaveFormat = new WaveFormat(16000, 16, 1) // 16kHz, 16-bit, mono for Whisper
             };
 
-            _waveWriter = new WaveFileWriter(_recordingStream, _waveIn.WaveFormat);
+            _waveWriter = new WaveFileWriter(new IgnoreDisposeStream(_recordingStream), _waveIn.WaveFormat);
 
             _waveIn.DataAvailable += OnDataAvailable;
             _waveIn.RecordingStopped += OnRecordingStopped;
@@ -63,7 +90,9 @@ public class AudioRecordingService : IDisposable
         catch (Exception ex)
         {
             StopRecording();
-            RecordingStopped?.Invoke(this, $"Error: {ex.Message}");
+            var errorMessage = $"Error: {ex.Message}";
+            RecordingStopped?.Invoke(this, errorMessage);
+            RecordingError?.Invoke(this, errorMessage);
         }
     }
 
@@ -192,6 +221,40 @@ public class AudioRecordingService : IDisposable
 
     private DateTime _silenceStartTime;
 
+    private async Task DetectSilenceAsync(CancellationToken ct)
+    {
+        // Wait a bit before starting silence detection to allow audio to start
+        await Task.Delay(500, ct);
+        
+        while (!ct.IsCancellationRequested && _isRecording)
+        {
+            await Task.Delay(100, ct);
+
+            // Only check for silence if we have audio data
+            if (_audioSamples.Count > 0)
+            {
+                if (_lastAudioLevel < SilenceThreshold)
+                {
+                    if (!_isSilent)
+                    {
+                        _isSilent = true;
+                        _silenceStartTime = DateTime.Now;
+                    }
+                    else if ((DateTime.Now - _silenceStartTime).TotalMilliseconds > SilenceDurationMs)
+                    {
+                        // Silence for more than specified duration - trigger transcription
+                        SilenceDetected?.Invoke(this, "Silence detected - starting transcription");
+                        break;
+                    }
+                }
+                else
+                {
+                    _isSilent = false;
+                }
+            }
+        }
+    }
+
     public void Dispose()
     {
         StopRecording();
@@ -200,4 +263,48 @@ public class AudioRecordingService : IDisposable
         _waveIn?.Dispose();
         _recordingStream?.Dispose();
     }
+}
+
+/// <summary>
+/// Represents an audio input device
+/// </summary>
+public class AudioInputDevice
+{
+    public int DeviceNumber { get; set; }
+    public string Name { get; set; } = "";
+    public int Channels { get; set; }
+    
+    public override string ToString() => Name;
+}
+
+/// <summary>
+/// Helper stream that ignores Dispose to prevent premature closing
+/// </summary>
+internal class IgnoreDisposeStream : Stream
+{
+    private readonly Stream _inner;
+    
+    public IgnoreDisposeStream(Stream inner)
+    {
+        _inner = inner;
+    }
+    
+    public override bool CanRead => _inner.CanRead;
+    public override bool CanSeek => _inner.CanSeek;
+    public override bool CanWrite => _inner.CanWrite;
+    public override long Length => _inner.Length;
+    public override long Position
+    {
+        get => _inner.Position;
+        set => _inner.Position = value;
+    }
+    
+    public override void Flush() => _inner.Flush();
+    public override int Read(byte[] buffer, int offset, int count) => _inner.Read(buffer, offset, count);
+    public override long Seek(long offset, SeekOrigin origin) => _inner.Seek(offset, origin);
+    public override void SetLength(long value) => _inner.SetLength(value);
+    public override void Write(byte[] buffer, int offset, int count) => _inner.Write(buffer, offset, count);
+    
+    // Don't dispose the inner stream
+    protected override void Dispose(bool disposing) { /* Do nothing */ }
 }

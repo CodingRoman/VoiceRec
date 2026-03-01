@@ -64,6 +64,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private Axis[] _yAxes = Array.Empty<Axis>();
 
+    // Device selection
+    [ObservableProperty]
+    private ObservableCollection<AudioInputDevice> _availableDevices = new();
+
+    [ObservableProperty]
+    private AudioInputDevice? _selectedDevice;
+
+    [ObservableProperty]
+    private bool _hasDevices;
+
     private readonly ObservableCollection<ObservableValue> _waveformValues = new();
 
     public MainViewModel()
@@ -80,10 +90,40 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _audioService.SilenceDetected += OnSilenceDetected;
         _audioService.RecordingStarted += (s, e) => UpdateStatus("Aufnahme läuft...");
         _audioService.RecordingStopped += (s, e) => UpdateStatus("Aufnahme beendet");
+        _audioService.RecordingError += (s, e) => UpdateStatus($"Fehler: {e}");
         _whisperService.StatusChanged += OnWhisperStatusChanged;
 
         // Show installation guide
         InstallationGuide = WhisperService.GetInstallationInstructions();
+        
+        // Load available audio devices
+        LoadAudioDevices();
+    }
+
+    private void LoadAudioDevices()
+    {
+        try
+        {
+            var devices = AudioRecordingService.GetAvailableDevices();
+            AvailableDevices.Clear();
+            
+            foreach (var device in devices)
+            {
+                AvailableDevices.Add(device);
+            }
+            
+            HasDevices = AvailableDevices.Count > 0;
+            
+            if (HasDevices)
+            {
+                SelectedDevice = AvailableDevices[0];
+            }
+        }
+        catch (Exception ex)
+        {
+            HasDevices = false;
+            UpdateStatus($"Gerätefehler: {ex.Message}");
+        }
     }
 
     private void SetupWaveformChart()
@@ -228,10 +268,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 return;
             }
 
-            _audioService.StartRecording();
+            if (!HasDevices)
+            {
+                UpdateStatus("Keine Aufnahmegeräte gefunden.");
+                return;
+            }
+
+            // Start recording with selected device
+            int deviceNumber = SelectedDevice?.DeviceNumber ?? 0;
+            _audioService.StartRecording(deviceNumber);
             IsRecording = true;
             TranscribedText = "";
             TranslatedText = "";
+            UpdateStatus($"Aufnahme gestartet mit: {SelectedDevice?.Name ?? "Standard-Gerät"}");
         }
     }
 
