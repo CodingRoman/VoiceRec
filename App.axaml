@@ -1,0 +1,22 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="VoiceRec.App"
+             xmlns:local="using:VoiceRec"
+             xmlns:converters="using:VoiceRec.Converters"
+             RequestedThemeVariant="Dark">
+             
+    <Application.DataTemplates>
+        <local:ViewLocator/>
+    </Application.DataTemplates>
+    
+    <Application.Resources>
+        <converters:BoolToRecordIconConverter x:Key="BoolToRecordIconConverter"/>
+        <converters:BoolToRecordTextConverter x:Key="BoolToRecordTextConverter"/>
+        <converters:BoolToColorConverter x:Key="BoolToColorConverter"/>
+        <converters:InverseBoolConverter x:Key="InverseBoolConverter"/>
+    </Application.Resources>
+  
+    <Application.Styles>
+        <FluentTheme />
+    </Application.Styles>
+</Application>

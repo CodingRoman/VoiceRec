@@ -1,0 +1,157 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:VoiceRec.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:lvc="using:LiveChartsCore.SkiaSharpView.Avalonia"
+        xmlns:converters="using:VoiceRec.Converters"
+        mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="175"
+        x:Class="VoiceRec.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="VoiceRec - Sprachaufnahme &amp; Transkription"
+        Width="600" Height="175"
+        MinWidth="500" MinHeight="175"
+        MaxHeight="175"
+        WindowStartupLocation="CenterScreen"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        ExtendClientAreaTitleBarHeightHint="0"
+        Background="Transparent"
+        ShowInTaskbar="True"
+        CanResize="False">
+
+    <Window.Resources>
+        <converters:BoolToRecordIconConverter x:Key="BoolToRecordIconConverter"/>
+        <converters:BoolToRecordTextConverter x:Key="BoolToRecordTextConverter"/>
+        <converters:BoolToColorConverter x:Key="BoolToColorConverter"/>
+    </Window.Resources>
+
+    <Border Background="#E6000000"
+            CornerRadius="15"
+            BorderBrush="#404040"
+            BorderThickness="1"
+            Margin="10"
+            PointerPressed="OnBorderPointerPressed">
+
+        <Grid RowDefinitions="40,*,Auto" ColumnDefinitions="*,Auto" Margin="10">
+
+            <!-- Title Bar (Draggable Area) -->
+            <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="VoiceRec" FontSize="16" FontWeight="Bold"
+                           Foreground="White" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding StatusMessage}" FontSize="12"
+                           Foreground="Gray" Margin="15,0,0,0" VerticalAlignment="Center"/>
+            </StackPanel>
+
+            <!-- Close Button -->
+            <Button Grid.Row="0" Grid.Column="1"
+                    Content="✕"
+                    Click="OnCloseButtonClick"
+                    Background="Transparent"
+                    Foreground="White"
+                    FontSize="14"
+                    Padding="8,2"
+                    CornerRadius="5">
+                <Button.Styles>
+                    <Style Selector="Button:pointerover">
+                        <Setter Property="Background" Value="#FF4444"/>
+                    </Style>
+                </Button.Styles>
+            </Button>
+
+            <!-- Waveform Chart -->
+            <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                    Background="#20000000"
+                    CornerRadius="8"
+                    Margin="0,5,0,5"
+                    Padding="5">
+                <Grid>
+                    <lvc:CartesianChart Series="{Binding WaveformSeries}"
+                                        XAxes="{Binding XAxes}"
+                                        YAxes="{Binding YAxes}"
+                                        TooltipPosition="Hidden"
+                                        ZoomMode="None"/>
+
+                    <!-- Recording indicator -->
+                    <StackPanel Orientation="Horizontal"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Top"
+                                IsVisible="{Binding IsRecording}"
+                                Margin="5,2">
+                        <Ellipse Width="8" Height="8" Fill="#FF4444"/>
+                        <TextBlock Text="REC" Foreground="#FF4444"
+                                   FontWeight="Bold" FontSize="10" Margin="3,0,0,0"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Control Buttons -->
+            <Grid Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" ColumnDefinitions="*,*,*" Margin="0,0,0,0">
+
+                <!-- Record Button -->
+                <Button Grid.Column="0"
+                        Command="{Binding ToggleRecordingCommand}"
+                        HorizontalAlignment="Stretch"
+                        Height="35"
+                        Margin="0,0,5,0"
+                        CornerRadius="8">
+                    <Button.Background>
+                        <SolidColorBrush Color="{Binding IsRecording, Converter={StaticResource BoolToColorConverter}}"/>
+                    </Button.Background>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <TextBlock Text="{Binding IsRecording, Converter={StaticResource BoolToRecordIconConverter}}"
+                                   FontSize="14" Margin="0,0,5,0"/>
+                        <TextBlock Text="{Binding IsRecording, Converter={StaticResource BoolToRecordTextConverter}}"
+                                   FontSize="12" FontWeight="SemiBold"/>
+                    </StackPanel>
+                </Button>
+
+                <!-- Translate Button -->
+                <Button Grid.Column="1"
+                        Command="{Binding TranslateTextCommand}"
+                        IsEnabled="{Binding TranscribedText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                        HorizontalAlignment="Stretch"
+                        Height="35"
+                        Margin="5,0"
+                        Background="#4A90D9"
+                        CornerRadius="8">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <TextBlock Text="🌐" FontSize="14" Margin="0,0,5,0"/>
+                        <TextBlock Text="Translate" FontSize="12" FontWeight="SemiBold"/>
+                    </StackPanel>
+                </Button>
+
+                <!-- Clear Button -->
+                <Button Grid.Column="2"
+                        Command="{Binding ClearTextCommand}"
+                        HorizontalAlignment="Stretch"
+                        Height="35"
+                        Margin="5,0,0,0"
+                        Background="#404040"
+                        CornerRadius="8">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <TextBlock Text="🗑️" FontSize="14" Margin="0,0,5,0"/>
+                        <TextBlock Text="Clear" FontSize="12" FontWeight="SemiBold"/>
+                    </StackPanel>
+                </Button>
+            </Grid>
+        </Grid>
+    </Border>
+
+    <Window.Styles>
+        <Style Selector="Button">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style Selector="Button:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#505050"/>
+        </Style>
+        <Style Selector="Button:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="#606060"/>
+        </Style>
+        <Style Selector="Button:disabled">
+            <Setter Property="Opacity" Value="0.5"/>
+        </Style>
+    </Window.Styles>
+
+</Window>
