@@ -180,6 +180,11 @@ public class AudioRecordingService : IDisposable
 
     private void OnRecordingStopped(object? sender, StoppedEventArgs e)
     {
+        if (e.Exception != null)
+        {
+            RecordingError?.Invoke(this, $"Recording error: {e.Exception.Message}");
+        }
+
         _waveWriter?.Dispose();
         _waveWriter = null;
 
@@ -190,33 +195,6 @@ public class AudioRecordingService : IDisposable
         _recordingStream = null;
 
         RecordingStopped?.Invoke(this, "Recording stopped");
-    }
-
-    private async Task DetectSilenceAsync(CancellationToken ct)
-    {
-        while (!ct.IsCancellationRequested && _isRecording)
-        {
-            await Task.Delay(100, ct);
-
-            if (_lastAudioLevel < SilenceThreshold)
-            {
-                if (!_isSilent)
-                {
-                    _isSilent = true;
-                    _silenceStartTime = DateTime.Now;
-                }
-                else if ((DateTime.Now - _silenceStartTime).TotalMilliseconds > SilenceDurationMs)
-                {
-                    // Silence for more than 2 seconds - trigger transcription
-                    SilenceDetected?.Invoke(this, "Silence detected - starting transcription");
-                    break;
-                }
-            }
-            else
-            {
-                _isSilent = false;
-            }
-        }
     }
 
     private DateTime _silenceStartTime;

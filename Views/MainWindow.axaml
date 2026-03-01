@@ -116,7 +116,7 @@
             </Border>
 
             <!-- Control Buttons -->
-            <Grid Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" ColumnDefinitions="*,*,*" Margin="0,0,0,0">
+            <Grid Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" ColumnDefinitions="*,*,*" Margin="0,0,0,0">
 
                 <!-- Record Button -->
                 <Button Grid.Column="0"
